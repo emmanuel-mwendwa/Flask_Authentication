@@ -11,4 +11,7 @@ def create_app(config_name):
 
     db.init_app(app)
 
+    from app.main.views import main as main_blueprint
+    app.register_blueprint(main_blueprint)
+
     return app

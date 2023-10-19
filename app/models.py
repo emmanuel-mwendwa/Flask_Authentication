@@ -1,5 +1,6 @@
 from . import db
 from flask import current_app
+from werkzeug.security import check_password_hash, generate_password_hash
 
 class Permission:
     FOLLOW = 1
@@ -69,7 +70,33 @@ class User(db.Model):
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
         if self.role is None:
-            if self.email == current_app.config['FLASKY_ADMIN']:
+            if self.email == current_app.config['APP_ADMIN']:
                 self.role = Role.query.filter_by(name='Administrator').first()
             if self.role is None:
                 self.role = Role.query.filter_by(default=True).first()
+
+    def can(self, perm):
+        return self.role is not None and self.role.has_permission(perm)
+    
+    def is_administrator(self):
+        return self.can(Permission.ADMIN)
+    
+    @property
+    def password(self):
+        raise AttributeError('What are you trying to do.')
+    
+    @password.setter
+    def password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def verify_password(self, password):
+        return check_password_hash(self.password_hash, password)
+    
+    def to_json(self):
+        json_user = {
+            "username": self.username,
+            "email": self.email,
+            "role": self.role.name
+        }
+
+        return json_user
