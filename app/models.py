@@ -1,13 +1,12 @@
 from . import db
 from flask import current_app
 from werkzeug.security import check_password_hash, generate_password_hash
-
+import jwt
+import datetime
 class Permission:
-    FOLLOW = 1
-    COMMENT = 2
-    WRITE = 4
-    MODERATE = 8
-    ADMIN = 16
+    VIEW = 1
+    MODERATE = 2
+    ADMIN = 4
 
 class Role(db.Model):
     __tablename__ = 'roles'
@@ -40,11 +39,9 @@ class Role(db.Model):
     @staticmethod
     def insert_roles():
         roles = {
-            'User': [Permission.FOLLOW, Permission.COMMENT, Permission.WRITE],
-            'Moderator': [Permission.FOLLOW, Permission.COMMENT, Permission.WRITE,
-                          Permission.MODERATE],
-            'Administrator': [Permission.FOLLOW, Permission.COMMENT, 
-                              Permission.WRITE, Permission.MODERATE, Permission.ADMIN]
+            'User': [Permission.VIEW],
+            'Moderator': [Permission.VIEW, Permission.MODERATE],
+            'Administrator': [Permission.VIEW, Permission.MODERATE, Permission.ADMIN]
         }
         default_role = 'User'
         for r in roles:
@@ -66,6 +63,7 @@ class User(db.Model):
     username = db.Column(db.String(64), unique=True, index=True)
     password_hash = db.Column(db.String(128))
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+    confirmed = db.Column(db.Boolean, default=False)
 
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
@@ -91,6 +89,30 @@ class User(db.Model):
 
     def verify_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    def generate_auth_token(self, expiration=600):
+        auth_token = jwt.encode({
+            "user": self.id,
+            "email": self.email,
+            "exp": datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(seconds=expiration)
+        },
+        current_app.config["SECRET_KEY"],
+        algorithm="HS256"
+        )
+        return auth_token
+    
+    @staticmethod
+    def verify_auth_token(token):
+        try:
+            data = jwt.decode(
+                token,
+                current_app.config["SECRET_KEY"],
+                leeway=datetime.timedelta(seconds=10),
+                algorithms=["HS256"]
+            )
+        except:
+            return False
+        return User.query.get(data["user"])
     
     def to_json(self):
         json_user = {

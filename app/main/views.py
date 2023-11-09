@@ -1,5 +1,9 @@
 from flask import Blueprint, jsonify, request
-from ..models import User
+
+from app.auth.views import token_auth
+
+from ..models import User, Permission
+from ..decorators import permission_required
 from .. import db
 
 main = Blueprint("main", __name__)
@@ -23,6 +27,8 @@ class UserRoutes:
         ]})
     
     @main.get("/users")
+    @token_auth.login_required
+    @permission_required(Permission.VIEW)
     def view_users():
         users = User.query.all()
         users_list = []
@@ -32,6 +38,8 @@ class UserRoutes:
         return jsonify({"Users": users_list})
     
     @main.get("/users/<int:id>")
+    @token_auth.login_required
+    @permission_required(Permission.VIEW)
     def view_user(id):
         user = User.query.get(id)
         if not user:
@@ -39,6 +47,8 @@ class UserRoutes:
         return jsonify(user.to_json())
     
     @main.put("/users/<int:id>")
+    @token_auth.login_required
+    @permission_required(Permission.MODERATE)
     def update_user(id):
         data = request.get_json()
         user = User.query.get(id)
@@ -54,6 +64,8 @@ class UserRoutes:
         ]})
     
     @main.delete("/users/<int:id>")
+    @token_auth.login_required
+    @permission_required(Permission.ADMIN)
     def delete_user(id):
         user = User.query.get(id)
         if not user:
